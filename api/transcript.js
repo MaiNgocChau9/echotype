@@ -1,4 +1,4 @@
-import { fetchTranscript } from 'youtube-transcript-plus'
+import { YoutubeTranscript } from 'youtube-transcript'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -14,8 +14,12 @@ function getVideoId(url) {
   } catch { return '' }
 }
 
+function decodeXmlEntities(text) {
+  return text.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&apos;/g,"'").replace(/&#x([0-9a-fA-F]+);/g,(_,h)=>String.fromCodePoint(parseInt(h,16))).replace(/&#(\d+);/g,(_,d)=>String.fromCodePoint(parseInt(d,10)))
+}
+
 function cleanRow(text) {
-  return text.replace(/\[[^\]]*\]/g, '').replace(/>>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim()
+  return decodeXmlEntities(text.replace(/\[[^\]]*\]/g,'').replace(/>></g,' ').replace(/\s+/g,' ').trim())
 }
 
 export default async function handler(req, res) {
@@ -28,7 +32,7 @@ export default async function handler(req, res) {
     const videoId = getVideoId(target)
     if (!videoId) throw new Error('Paste a valid YouTube URL to begin.')
 
-    const raw = await fetchTranscript(videoId)
+    const raw = await YoutubeTranscript.fetchTranscript(videoId)
     if (!raw?.length) throw new Error('No captions found')
 
     const rows = raw.map(r => ({
@@ -73,7 +77,8 @@ export default async function handler(req, res) {
     res.end(JSON.stringify({ sentences }))
   } catch (err) {
     console.error('[transcript]', err.message)
-    res.statusCode = 404
+    const isBlocked = err.message?.includes('Transcript is disabled') || err.message?.includes('disabled')
+    res.statusCode = isBlocked ? 403 : 404
     res.setHeader('Content-Type', 'application/json')
     res.end(JSON.stringify({ detail: err.message || 'No captions found' }))
   }
