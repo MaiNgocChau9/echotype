@@ -28,8 +28,8 @@ export default async function handler(req, res) {
     const videoId = getVideoId(target)
     if (!videoId) throw new Error('Paste a valid YouTube URL to begin.')
 
-    const raw = await fetchTranscript(target)
-    if (!raw?.length) throw new Error('No captions found for this video')
+    const raw = await fetchTranscript(videoId)
+    if (!raw?.length) throw new Error('No captions found')
 
     const rows = raw.map(r => ({
       text: cleanRow(r.text),
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       rows[i].end = i < rows.length - 1 ? rows[i + 1].start : rows[i].start + rows[i].duration
     }
 
-    const MAX_SENTENCE = 110
+    const MAX = 110
     const sentences = []
     const buffer = []
     const flush = () => {
@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     for (const row of rows) {
       if (!/[.!?]["']?\s*$/.test(row.text)) {
         buffer.push({ text: row.text, start: buffer.length ? buffer[0].start : row.start, end: row.end })
-        if (buffer.map(b => b.text).join(' ').length > MAX_SENTENCE) flush()
+        if (buffer.map(b => b.text).join(' ').length > MAX) flush()
         continue
       }
       buffer.push({ text: row.text, start: buffer.length ? buffer[0].start : row.start, end: row.end })
@@ -72,6 +72,7 @@ export default async function handler(req, res) {
     res.statusCode = 200
     res.end(JSON.stringify({ sentences }))
   } catch (err) {
+    console.error('[transcript]', err.message)
     res.statusCode = 404
     res.setHeader('Content-Type', 'application/json')
     res.end(JSON.stringify({ detail: err.message || 'No captions found' }))
