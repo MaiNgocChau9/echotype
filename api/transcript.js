@@ -25,17 +25,29 @@ function normalizeTs(val) {
 }
 
 async function getCaptionsFromHTML(videoId) {
-  const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+  const pageUrl = `https://www.youtube.com/watch?v=${videoId}`
+  console.log('[transcript] fetching page:', pageUrl)
+  const res = await fetch(pageUrl, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept-Language': 'en-US,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     },
   })
+  console.log('[transcript] page status:', res.status)
   if (!res.ok) throw new Error('Failed to fetch YouTube page')
   const html = await res.text()
+  console.log('[transcript] html length:', html.length)
 
   const match = html.match(/"captionTracks":\[([^\]]*)\]/)
-  if (!match) throw new Error('No captions found for this video. Please try a video with CC.')
+  console.log('[transcript] captionTracks match:', !!match)
+  if (!match) {
+    console.log('[transcript] checking for consent/playability...')
+    const hasConsent = html.includes('consent.youtube.com') || html.includes('CONSENT')
+    const hasPlayability = html.includes('"playabilityStatus"')
+    console.log('[transcript] consent:', hasConsent, 'playability:', hasPlayability)
+    throw new Error('No captions found for this video. Please try a video with CC.')
+  }
 
   let tracks
   try {
